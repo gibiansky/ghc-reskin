@@ -17,6 +17,24 @@ $ ghc Test.hs -F -pgmF ghc-reskin -optF -XArgumentBlock
 
 This can also be used in a pragma, as in the examples below.
 
+# Reskin Installation
+
+To install `ghc-reskin`, clone the repository:
+
+```bash
+git clone https://github.com/gibiansky/ghc-reskin.git
+```
+
+Enter the repository directory and run `stack install`:
+
+```bash
+cd ghc-reskin
+stack install
+```
+
+If you encounter issues with the parser being generated (or get errors about
+`Parser.hs` not being found), run `stack clean` and then `cabal configure`
+
 # Reskin Extensions
 
 Currently supported extensions include:
