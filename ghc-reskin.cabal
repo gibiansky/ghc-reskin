@@ -1,0 +1,29 @@
+name:                ghc-reskin
+version:             0.1.0.0
+synopsis:            A custom syntax reskinning for ghc, used with -pgmF
+description:         Please see README.md
+homepage:            http://github.com/gibiansky/ghc-reskin#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Andrew Gibiansky
+maintainer:          andrew.gibiansky@gmail.com
+copyright:           2015 Andrew Gibiansky
+category:            Development
+build-type:          Custom
+cabal-version:       >=1.10
+extra-source-files:
+  build-parser.sh
+  Parser.y
+
+executable ghc-reskin
+  hs-source-dirs:      src
+  main-is:             Main.hs
+
+  other-modules:       Reskin
+                       Reskin.Types
+                       Reskin.Annotate
+                       Reskin.Parser
+
+  default-language:    Haskell2010
+  build-tools:         alex, happy
+  build-depends:       base >= 4.7 && < 5, ghc-exactprint, ghc, ghc-paths, containers
