@@ -33,7 +33,7 @@ stack install
 ```
 
 If you encounter issues with the parser being generated (or get errors about
-`Parser.hs` not being found), run `stack clean` and then `cabal configure`
+`Parser.hs` not being found), run `stack clean` and then `cabal configure`.
 
 # Reskin Extensions
 
@@ -53,15 +53,15 @@ main = do
   args <- getArgs
 
   -- No $ before the lambda
-  long <- forM args \arg ->
-    return (length arg > 10)
+  forM_ args \arg ->
+    putStrLn arg
 
-  -- No $ before `case`
-  let test = not case long of
-               [] -> True
-               _ -> False
+  putStrLn case args of
+    [] -> "Empty argument list..."
+    xs -> "Num arguments: " ++ show (length xs)
 
-  -- No $ before `do`
-  when test do
-    putStrLn "Test succeeded!"
+  -- No $ before do
+  when (null args) do
+    putStrLn "No arguments"
+    putStrLn "Why didn't you argue?"
 ```

@@ -1,6 +1,6 @@
 module Reskin (parseReskinOptions, ReskinOptions(..), reskin) where
 
-import           Data.List (stripPrefix, nub, (\\))
+import           Data.List (stripPrefix, nub, (\\), partition)
 import           Control.Monad
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -72,35 +72,51 @@ reskin reskinOpts =
       result <- parseFile src inp
       case result of
         Left (_, str) -> fail str
-        Right (commentAnns, anns, pmod) ->
+        Right (usedExts, anns, pmod) ->
           -- Check if we're using an extensions we're not allowed to.
-          case usedExtensions commentAnns \\ exts of
+          case usedExts \\ exts of
             []   -> writeFile out $ exactPrintWithAnns pmod (fixAnns anns)
             exts -> fail $ unwords ["Using reskin extension that were not enabled:", show exts]
 
     _ -> fail "Source filename and/or input filename not provided to reskin."
   where
-    usedExtensions commentAnns =
-      nub (mapMaybe readMay [possibExtName | GHC.AnnLineComment possibExtName <- commentAnns])
 
     fixAnns = Map.insert (AnnKey GHC.noSrcSpan (CN "HsPar"))
                 (annNone { annsDP = [(G GHC.AnnOpenP, DP (0, 1)), (G GHC.AnnCloseP, DP (0, 0))] })
 
+extractExtensions :: [GHC.Located GHC.AnnotationComment] -> ([ReskinExtension], [GHC.Located GHC.AnnotationComment])
+extractExtensions commentAnns = (extensions, otherAnns)
+  where
+    (extAnns, otherAnns) = partition (isExtensionComment . GHC.unLoc) commentAnns
+    extensions = nub $ mapMaybe (readAnnotation . GHC.unLoc) extAnns
+
+    readAnnotation :: Read a => GHC.AnnotationComment -> Maybe a
+    readAnnotation (GHC.AnnLineComment str) = readMay str
+    readAnnotation _ = Nothing
+
+    isExtensionComment :: GHC.AnnotationComment -> Bool
+    isExtensionComment = isJust . fmap ext . readAnnotation
+
+    ext :: ReskinExtension -> ReskinExtension
+    ext = id
+
 -- | Run the reskin module parser on a string.
 parseFile :: FilePath  -- ^ The original name of the source file (for error messages).
           -> FilePath   -- ^ The file from which to read the module.
-          -> IO (Either (GHC.SrcSpan, String) ([GHC.AnnotationComment], Anns, GHC.Located (GHC.HsModule GHC.RdrName)))
+          -> IO (Either (GHC.SrcSpan, String) ([ReskinExtension], Anns, GHC.Located (GHC.HsModule GHC.RdrName)))
 parseFile sourceFile file =
   GHC.defaultErrorHandler GHC.defaultFatalMessager GHC.defaultFlushOut $
     GHC.runGhc (Just libdir) $ do
       dflags <- initDynFlags file
       txt <- GHC.liftIO $ readFile file
-      let (fileContents,injectedComments) = stripLinePragmas txt
+      let (fileContents, injectedComments) = stripLinePragmas txt
       return $
         case runParser parseModule dflags sourceFile fileContents of
           GHC.PFailed ss m -> Left (ss, GHC.showSDoc dflags m)
-          GHC.POk pstate pmod  ->
-            Right (map GHC.unLoc (GHC.comment_q pstate), relativiseApiAnnsWithComments injectedComments pmod (mkApiAnns pstate), pmod)
+          GHC.POk pstate pmod ->
+            let (exts, anns) =  extractExtensions (GHC.comment_q pstate)
+            in Right
+                 (exts, relativiseApiAnnsWithComments injectedComments pmod (mkApiAnns pstate anns), pmod)
 
 -- | From @Language.Haskell.GHC.ExactPrint.Parsers@
 initDynFlags :: GHC.GhcMonad m => FilePath -> m GHC.DynFlags
@@ -121,7 +137,6 @@ runParser parser flags filename str = GHC.unP parser parseState
       parseState = GHC.mkPState flags buffer location
 
 -- | From @Language.Haskell.GHC.ExactPrint.Parsers@
-mkApiAnns :: GHC.PState -> GHC.ApiAnns
-mkApiAnns pstate
+mkApiAnns pstate comms
   = ( Map.fromListWith (++) . GHC.annotations $ pstate
-    , Map.fromList ((GHC.noSrcSpan, GHC.comment_q pstate) : GHC.annotations_comments pstate))
+    , Map.fromList ((GHC.noSrcSpan, comms) : GHC.annotations_comments pstate))
